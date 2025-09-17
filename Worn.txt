@@ -1,0 +1,48 @@
+// ---------------- HELMET WORN IMPROPERLY ----------------
+  else if (pressedCount > 0 && pressedCount < 3) {
+    Serial.println("Helmet worn improperly");
+    digitalWrite(vibration_motorPin, HIGH);
+
+    if (stillStartTime == 0) stillStartTime = millis();
+    if (millis() - stillStartTime >= motionTimeout) {
+      digitalWrite(relay, LOW);
+      digitalWrite(vibration_motorPin, LOW);
+      stillStartTime = 0;
+    }
+    notWornStartTime = 0;
+    relayActivated = false;
+    stateToSend = "improper";
+  }
+
+  // ---------------- HELMET NOT WORN ----------------
+  else {
+    if (notWornStartTime == 0) notWornStartTime = millis();
+
+    if (millis() - notWornStartTime < notWornTimeout) {
+      Serial.println("Helmet properly worn (grace period)");
+      digitalWrite(vibration_motorPin, LOW);
+     // stateToSend = "worn"; // grace period considered as worn
+    } 
+    else {
+      Serial.println("Helmet not worn");
+      digitalWrite(vibration_motorPin, LOW);
+
+      if (!relayActivated && (millis() - notWornStartTime >= relayDelay)) {
+        digitalWrite(relay, HIGH);
+        Serial.println("Relay activated due to helmet not worn for 30 sec");
+        relayActivated = true;
+      }
+      stateToSend = "no";
+    }
+    stillStartTime = 0;
+  }
+
+  // --- Send via LoRa only if state changed ---
+  if (stateToSend != "" && stateToSend != lastState) {
+    String cmd = "AT+SEND=0," + String(stateToSend.length()) + "," + stateToSend + "\r\n";
+    lora.print(cmd);
+    Serial.println("LoRa Sent: " + cmd);
+    lastState = stateToSend;
+  }
+
+  delay(500);
