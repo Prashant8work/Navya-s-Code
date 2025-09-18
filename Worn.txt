@@ -1,4 +1,74 @@
-// ---------------- HELMET WORN IMPROPERLY ----------------
+#include <Wire.h>
+#include <MPU9250_asukiaaa.h>
+#include <SoftwareSerial.h>
+
+MPU9250_asukiaaa mySensor;
+SoftwareSerial lora(6, 5); // LoRa RX=6, TX=5
+
+const float motionThreshold = 0.25;
+const unsigned long motionTimeout = 5000;
+const unsigned long notWornTimeout = 5000;
+const unsigned long relayDelay = 30000;
+
+#define limit_switch_1 10
+#define limit_switch_2 11
+#define limit_switch_3 12
+#define relay 9
+#define vibration_motorPin 13
+
+unsigned long stillStartTime = 0;
+unsigned long notWornStartTime = 0;
+bool relayActivated = false;
+String lastState = "";
+
+void setup() {
+  Serial.begin(115200);
+  Wire.begin();
+  mySensor.setWire(&Wire);
+  mySensor.beginAccel();
+
+  pinMode(limit_switch_1, INPUT_PULLUP);
+  pinMode(limit_switch_2, INPUT_PULLUP);
+  pinMode(limit_switch_3, INPUT_PULLUP);
+  pinMode(relay, OUTPUT);
+  pinMode(vibration_motorPin, OUTPUT);
+
+  digitalWrite(relay, LOW);
+  digitalWrite(vibration_motorPin, LOW);
+
+  lora.begin(115200);
+
+  Serial.println("Helmet System with LoRa Ready");
+}
+
+void loop() {
+  // --- Read accelerometer ---
+  mySensor.accelUpdate();
+  float ax = abs(mySensor.accelX());
+  float ay = abs(mySensor.accelY());
+  bool motionDetected = (ax >= motionThreshold || ay >= motionThreshold);
+
+  // --- Read limit switches ---
+  bool s1 = digitalRead(limit_switch_1) == LOW;
+  bool s2 = digitalRead(limit_switch_2) == LOW;
+  bool s3 = digitalRead(limit_switch_3) == LOW;
+  int pressedCount = s1 + s2 + s3;
+
+  bool helmetWorn = (pressedCount == 3 && motionDetected);
+  String stateToSend = "";
+
+  // ---------------- HELMET PROPERLY WORN ----------------
+  if (helmetWorn) {
+    Serial.println("Helmet properly worn");
+    digitalWrite(relay, LOW);
+    digitalWrite(vibration_motorPin, LOW);
+    stillStartTime = 0;
+    notWornStartTime = 0;
+    relayActivated = false;
+    stateToSend = "worn";
+  }
+
+  // ---------------- HELMET WORN IMPROPERLY ----------------
   else if (pressedCount > 0 && pressedCount < 3) {
     Serial.println("Helmet worn improperly");
     digitalWrite(vibration_motorPin, HIGH);
@@ -46,3 +116,4 @@
   }
 
   delay(500);
+}
